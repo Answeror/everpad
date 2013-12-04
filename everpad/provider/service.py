@@ -186,10 +186,21 @@ class ProviderService(dbus.service.Object):
             raise DBusException('Notebook does not exist')
 
     @dbus.service.method(
+        "com.everpad.Provider", in_signature='',
+        out_signature='a%s' % btype.Tag.signature,
+    )
+    def list_tags(self):
+        return map(lambda tag:
+            btype.Tag.from_obj(tag).struct,
+        self.sq(Tag).filter(
+            Tag.action != ACTION_DELETE,
+        ).order_by(Tag.name))
+
+    @dbus.service.method(
         "com.everpad.Provider", in_signature='ii',
         out_signature='a%s' % btype.Tag.signature,
     )
-    def list_tags(self, offset=0, limit=32):
+    def find_tags(self, offset=0, limit=32):
         return map(lambda tag:
             btype.Tag.from_obj(tag).struct,
         self.sq(Tag).filter(

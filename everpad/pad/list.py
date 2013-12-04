@@ -80,7 +80,7 @@ class List(QMainWindow):
                 selected_item = tagRoot
                 select_tag_id = getattr(_self, '_select_tag_id', None)
 
-                for tag_struct in _self.app.provider.list_tags(tagRoot.rowCount(), 32):
+                for tag_struct in _self.app.provider.find_tags(tagRoot.rowCount(), 32):
                     tag = Tag.from_tuple(tag_struct)
                     count = _self.app.provider.get_tag_notes_count(tag.id)
                     item = QTagItem(tag, count)
