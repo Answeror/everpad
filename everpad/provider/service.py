@@ -67,11 +67,11 @@ class ProviderService(dbus.service.Object):
         return map(lambda note: btype.Note.from_obj(note).struct, qs.all())
 
     @dbus.service.method(
-        "com.everpad.Provider", in_signature='saiaiiiii',
+        "com.everpad.Provider", in_signature='saiaiiiiii',
         out_signature='a%s' % btype.Note.signature,
     )
     def find_notes(self, words, notebooks, tags, place,
-        limit=100, order=btype.Note.ORDER_UPDATED, pinnded=-1,
+        offset=0, limit=100, order=btype.Note.ORDER_UPDATED, pinnded=-1,
     ):
         filters = []
         if words:
@@ -107,7 +107,7 @@ class ProviderService(dbus.service.Object):
             btype.Note.ORDER_UPDATED: Note.updated,
             btype.Note.ORDER_TITLE_DESC: Note.title.desc(),
             btype.Note.ORDER_UPDATED_DESC: Note.updated.desc(),
-        }[order]).limit(limit)
+        }[order]).offset(offset).limit(limit)
         return map(lambda note: btype.Note.from_obj(note).struct, qs.all())
 
     @dbus.service.method(
@@ -186,7 +186,7 @@ class ProviderService(dbus.service.Object):
             raise DBusException('Notebook does not exist')
 
     @dbus.service.method(
-        "com.everpad.Provider", in_signature='',
+        "com.everpad.Provider", in_signature='ii',
         out_signature='a%s' % btype.Tag.signature,
     )
     def list_tags(self):

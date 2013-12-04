@@ -73,12 +73,12 @@ class Indicator(QSystemTrayIcon):
             pin_notes = self.app.provider.find_notes(
                 '', dbus.Array([], signature='i'),
                 dbus.Array([], signature='i'), 0,
-                20, Note.ORDER_UPDATED_DESC, 1,
+                0, 20, Note.ORDER_UPDATED_DESC, 1,
             )
             notes = self.app.provider.find_notes(
                 '', dbus.Array([], signature='i'),
                 dbus.Array([], signature='i'), 0,
-                20 - len(pin_notes), Note.ORDER_UPDATED_DESC, 0,
+                0, 20 - len(pin_notes), Note.ORDER_UPDATED_DESC, 0,
             )
             if len(notes) + len(pin_notes) or self.app.provider.is_first_synced():
                 self.menu.addAction(self.tr('All Notes'), self.show_all_notes)

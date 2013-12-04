@@ -26,6 +26,7 @@ class List(QMainWindow):
         self.app = QApplication.instance()
         self.closed = False
         self.sort_order = None
+        self._loaded = False
         self._init_interface()
         self.app.data_changed.connect(self._reload_data)
         self._init_notebooks()
@@ -64,8 +65,44 @@ class List(QMainWindow):
         self.ui.tagsList.customContextMenuRequested.connect(self.tag_context_menu)
 
     def _init_notes(self):
+        _self = self
+
+        class NotesModel(QStandardItemModel):
+
+            def canFetchMore(self, parent):
+                return True
+
+            def fetchMore(self, parent):
+                sort_order = _self.sort_order
+                if sort_order is None:
+                    sort_order = _self.app.settings.value('list-notes-sort-order')
+
+                note_order = Note.ORDER_TITLE
+                if sort_order:
+                    logicalIndex, order = sort_order
+                    order = Qt.SortOrder.values[order]
+                    note_order = {
+                        (0, Qt.SortOrder.AscendingOrder): Note.ORDER_TITLE,
+                        (0, Qt.SortOrder.DescendingOrder): Note.ORDER_TITLE_DESC,
+                        (1, Qt.SortOrder.AscendingOrder): Note.ORDER_UPDATED,
+                        (1, Qt.SortOrder.DescendingOrder): Note.ORDER_UPDATED_DESC,
+                    }[(int(logicalIndex), order)]
+
+                filters = getattr(_self, '_filters', (
+                    dbus.Array([], signature='i'),
+                    dbus.Array([], signature='i'),
+                ))
+                notes = _self.app.provider.find_notes(
+                    '', filters[0], filters[1],
+                    0, self.rowCount(), 32, note_order, -1,
+                )  # fails with sys.maxint in 64
+
+                for note_struct in notes:
+                    note = Note.from_tuple(note_struct)
+                    _self.notesModel.appendRow(QNoteItemFactory(note).make_items())
+
         self._current_note = None
-        self.notesModel = QStandardItemModel()
+        self.notesModel = NotesModel()
         self.notesModel.setHorizontalHeaderLabels(
             [self.tr('Title'), self.tr('Last Updated')])
 
@@ -95,7 +132,9 @@ class List(QMainWindow):
 
     def showEvent(self, *args, **kwargs):
         super(List, self).showEvent(*args, **kwargs)
-        self._reload_data()
+        # too slow on switching workspace in xmonad
+        if not self._loaded:
+            self._reload_data()
         self.readSettings()
 
     def writeSettings(self):
@@ -129,13 +168,13 @@ class List(QMainWindow):
     def sort_order_updated(self, logicalIndex, order):
         self.sort_order = (logicalIndex, order.name)
         self.app.settings.setValue('list-notes-sort-order', self.sort_order)
+        # re-fetch notes
+        self.notebook_selected(self.ui.notebooksList.currentIndex())
 
     def note_selected(self, index):
         self._current_note = index
 
     def notebook_selected(self, index):
-        self.notesModel.setRowCount(0)
-
         item = self.notebooksModel.itemFromIndex(index)
         if hasattr(item, 'notebook'):
             notebook_id = item.notebook.id
@@ -154,27 +193,15 @@ class List(QMainWindow):
                 if(notebook.stack == item.stack):
                     notebook_filter.append(notebook.id)
 
-        notes = self.app.provider.find_notes(
-            '', notebook_filter, dbus.Array([], signature='i'),
-            0, 2 ** 31 - 1, Note.ORDER_TITLE, -1,
-        )  # fails with sys.maxint in 64
+        self._filters = (
+            notebook_filter,
+            dbus.Array([], signature='i'),
+        )
 
-        for note_struct in notes:
-            note = Note.from_tuple(note_struct)
-            self.notesModel.appendRow(QNoteItemFactory(note).make_items())
-
-        sort_order = self.sort_order
-        if sort_order is None:
-            sort_order = self.app.settings.value('list-notes-sort-order')
-
-        if sort_order:
-            logicalIndex, order = sort_order
-            order = Qt.SortOrder.values[order]
-            self.ui.notesList.sortByColumn(int(logicalIndex), order)
+        # force view refresh
+        self.notesModel.clear()
 
     def tag_selected(self, index):
-        self.notesModel.setRowCount(0)
-
         item = self.tagsModel.itemFromIndex(index)
         if hasattr(item, 'tag'):
             tag_id = item.tag.id
@@ -185,22 +212,14 @@ class List(QMainWindow):
         self._current_tag = tag_id
 
         tag_filter = [tag_id] if tag_id > 0 else dbus.Array([], signature='i')
-        notes = self.app.provider.find_notes(
-            '', dbus.Array([], signature='i'), tag_filter,
-            0, 2 ** 31 - 1, Note.ORDER_TITLE, -1,
-        )  # fails with sys.maxint in 64
-        for note_struct in notes:
-            note = Note.from_tuple(note_struct)
-            self.notesModel.appendRow(QNoteItemFactory(note).make_items())
 
-        sort_order = self.sort_order
-        if sort_order is None:
-            sort_order = self.app.settings.value('list-notes-sort-order')
+        self._filters = (
+            dbus.Array([], signature='i'),
+            tag_filter,
+        )
 
-        if sort_order:
-            logicalIndex, order = sort_order
-            order = Qt.SortOrder.values[order]
-            self.ui.notesList.sortByColumn(int(logicalIndex), order)
+        # force view refresh
+        self.notesModel.clear()
 
     @Slot()
     def note_dblclicked(self, index):
@@ -368,6 +387,7 @@ class List(QMainWindow):
         self._reload_notebooks_list(self._current_notebook)
         self._reload_tags_list(self._current_tag)
         self._mark_note_selected(self._current_note)
+        self._loaded = True
 
     def _reload_notebooks_list(self, select_notebook_id=None):
         # TODO could enable selecting an already selected stack
@@ -432,7 +452,8 @@ class List(QMainWindow):
 
         for tag_struct in self.app.provider.list_tags():
             tag = Tag.from_tuple(tag_struct)
-            count = self.app.provider.get_tag_notes_count(tag.id)
+            #count = self.app.provider.get_tag_notes_count(tag.id)
+            count = 0
             item = QTagItem(tag, count)
             tagRoot.appendRow(item)
 
