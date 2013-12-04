@@ -189,12 +189,12 @@ class ProviderService(dbus.service.Object):
         "com.everpad.Provider", in_signature='ii',
         out_signature='a%s' % btype.Tag.signature,
     )
-    def list_tags(self):
+    def list_tags(self, offset=0, limit=32):
         return map(lambda tag:
             btype.Tag.from_obj(tag).struct,
         self.sq(Tag).filter(
             Tag.action != ACTION_DELETE,
-        ).order_by(Tag.name))
+        ).order_by(Tag.name).offset(offset).limit(limit))
 
     @dbus.service.method(
         "com.everpad.Provider", in_signature='i',

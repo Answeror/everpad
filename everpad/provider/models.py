@@ -32,8 +32,8 @@ SHARE_NEED_STOP = 3
 
 
 notetags_table = Table('notetags', Base.metadata,
-    Column('note', Integer, ForeignKey('notes.id')),
-    Column('tag', Integer, ForeignKey('tags.id'))
+    Column('note', Integer, ForeignKey('notes.id'), primary_key=True),
+    Column('tag', Integer, ForeignKey('tags.id'), primary_key=True)
 )
 
 

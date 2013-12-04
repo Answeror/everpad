@@ -57,8 +57,46 @@ class List(QMainWindow):
         self.ui.notebooksList.customContextMenuRequested.connect(self.notebook_context_menu)
 
     def _init_tags(self):
+        _self = self
+
+        class TagsModel(QStandardItemModel):
+
+            def clear(self):
+                super(TagsModel, self).clear()
+                self._tagRoot = None
+
+            def canFetchMore(self, parent):
+                return (parent.row(), parent.column()) in [(0, 0), (-1, -1)]
+
+            def fetchMore(self, parent):
+                if not hasattr(self, '_tagRoot') or self._tagRoot is None:
+                    self._tagRoot = tagRoot = QStandardItem(QIcon.fromTheme('user-home'), _self.tr('All Tags'))
+                    self.appendRow(tagRoot)
+                    _self.ui.tagsList.expandAll()
+                    return
+
+                tagRoot = self._tagRoot
+
+                selected_item = tagRoot
+                select_tag_id = getattr(_self, '_select_tag_id', None)
+
+                for tag_struct in _self.app.provider.list_tags(tagRoot.rowCount(), 32):
+                    tag = Tag.from_tuple(tag_struct)
+                    count = _self.app.provider.get_tag_notes_count(tag.id)
+                    item = QTagItem(tag, count)
+                    tagRoot.appendRow(item)
+
+                    if select_tag_id and tag.id == select_tag_id:
+                        selected_item = item
+
+                #_self.ui.tagsList.expandAll()
+                #if selected_item and not select_tag_id == SELECT_NONE:
+                    #index = self.indexFromItem(selected_item)
+                    #_self.ui.tagsList.setCurrentIndex(index)
+                    #_self.tag_selected(index)
+
         self._current_tag = None
-        self.tagsModel = QStandardItemModel()
+        self.tagsModel = TagsModel()
         self.ui.tagsList.setModel(self.tagsModel)
         self.ui.tagsList.selection.connect(self.tag_selection_changed)
         self.ui.tagsList.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -70,7 +108,7 @@ class List(QMainWindow):
         class NotesModel(QStandardItemModel):
 
             def canFetchMore(self, parent):
-                return True
+                return (parent.row(), parent.column()) == (-1, -1)
 
             def fetchMore(self, parent):
                 sort_order = _self.sort_order
@@ -86,7 +124,7 @@ class List(QMainWindow):
                         (0, Qt.SortOrder.DescendingOrder): Note.ORDER_TITLE_DESC,
                         (1, Qt.SortOrder.AscendingOrder): Note.ORDER_UPDATED,
                         (1, Qt.SortOrder.DescendingOrder): Note.ORDER_UPDATED_DESC,
-                    }[(int(logicalIndex), order)]
+                    }.get((int(logicalIndex), order), note_order)
 
                 filters = getattr(_self, '_filters', (
                     dbus.Array([], signature='i'),
@@ -199,7 +237,8 @@ class List(QMainWindow):
         )
 
         # force view refresh
-        self.notesModel.clear()
+        self.notesModel.setRowCount(0)
+        self.notesModel.reset()
 
     def tag_selected(self, index):
         item = self.tagsModel.itemFromIndex(index)
@@ -219,7 +258,8 @@ class List(QMainWindow):
         )
 
         # force view refresh
-        self.notesModel.clear()
+        self.notesModel.setRowCount(0)
+        self.notesModel.reset()
 
     @Slot()
     def note_dblclicked(self, index):
@@ -445,26 +485,8 @@ class List(QMainWindow):
 
     def _reload_tags_list(self, select_tag_id=None):
         # TODO nested tags
+        self._select_tag_id = select_tag_id
         self.tagsModel.clear()
-        tagRoot = QStandardItem(QIcon.fromTheme('user-home'), self.tr('All Tags'))
-        self.tagsModel.appendRow(tagRoot)
-        selected_item = tagRoot
-
-        for tag_struct in self.app.provider.list_tags():
-            tag = Tag.from_tuple(tag_struct)
-            #count = self.app.provider.get_tag_notes_count(tag.id)
-            count = 0
-            item = QTagItem(tag, count)
-            tagRoot.appendRow(item)
-
-            if select_tag_id and tag.id == select_tag_id:
-                selected_item = item
-
-        self.ui.tagsList.expandAll()
-        if selected_item and not select_tag_id == SELECT_NONE:
-            index = self.tagsModel.indexFromItem(selected_item)
-            self.ui.tagsList.setCurrentIndex(index)
-            self.tag_selected(index)
 
     def _mark_note_selected(self, index):
         if index:
