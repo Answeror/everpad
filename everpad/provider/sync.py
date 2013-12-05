@@ -490,9 +490,9 @@ class SyncThread(QThread, SyncAgent):
             self.need_to_update = True
             self.all_notes = list(self._iter_all_notes())
         try:
+            self.local_changes()
             if self.need_to_update:
                 self.remote_changes()
-            self.local_changes()
             self.sharing_changes()
         except Exception, e:  # maybe log this
             self.session.rollback()
