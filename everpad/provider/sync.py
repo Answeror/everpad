@@ -43,6 +43,11 @@ import socket
 import regex
 SYNC_MANUAL = -1
 
+from logbook import Logger
+
+
+log = Logger(__name__)
+
 
 class SyncAgent(object):
     """Split agent for latest backends support"""
@@ -121,7 +126,7 @@ class SyncAgent(object):
                     )
                     self.session.delete(notebook)
                 except EDAMUserException, e:
-                    self.app.log(e)
+                    log.exception('delete notebook failed')
         self.session.commit()
         self.notebook_duplicates()
 
@@ -174,7 +179,7 @@ class SyncAgent(object):
                     tag.guid = tg.guid
                 tag.action = ACTION_NONE
             except EDAMUserException as e:
-                self.app.log(e)
+                log.exception('update or create failed')
         self.session.commit()
 
     def _resources_for_note(self, note):
@@ -233,8 +238,7 @@ class SyncAgent(object):
                     self.session.delete(note)
             except EDAMUserException as e:
                 next_action = ACTION_NONE
-                self.app.log('Note %s failed' % note.title)
-                self.app.log(e)
+                log.exception('Note %s failed' % note.title)
             note.action = next_action
         self.session.commit()
 
@@ -394,8 +398,7 @@ class SyncAgent(object):
             note.share_status = models.SHARE_SHARED
         except EDAMUserException as e:
             note.share_status = models.SHARE_NONE
-            self.app.log('Sharing note %s failed' % note.title)
-            self.app.log(e)
+            log.exception('Sharing note %s failed' % note.title)
 
     def notes_sharing(self):
         """Notes sharing"""
@@ -413,8 +416,7 @@ class SyncAgent(object):
             note.share_status = models.SHARE_NONE
         except EDAMUserException as e:
             note.share_status = models.SHARE_SHARED
-            self.app.log('Stop sharing note %s failed' % note.title)
-            self.app.log(e)
+            log.exception('Stop sharing note %s failed' % note.title)
 
     def notes_stop_sharing(self):
         """Stop sharing otes"""
@@ -497,7 +499,7 @@ class SyncThread(QThread, SyncAgent):
         except Exception, e:  # maybe log this
             self.session.rollback()
             self.init_db()
-            self.app.log(e)
+            log.exception('apply changes failed')
         finally:
             self.sync_state_changed.emit(SYNC_STATE_FINISH)
             self.status = STATUS_NONE
