@@ -26,6 +26,7 @@ setup(name='everpad',
         "pysqlite ",
         "regex",
         "sqlalchemy",
+        'logbook',
     ],
     entry_points={
         'gui_scripts': [
