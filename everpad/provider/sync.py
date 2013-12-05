@@ -452,20 +452,26 @@ class SyncThread(QThread, SyncAgent):
             self.timer.start(delay)
 
     def run(self):
-        self.init_db()
-        self.init_network()
-        while True:
-            self.mutex.lock()
-            self.wait_condition.wait(self.mutex)
-            self.perform()
-            self.mutex.unlock()
-            time.sleep(1)  # prevent cpu eating
+        log.info('sync thread start')
+        try:
+            self.init_db()
+            self.init_network()
+            while True:
+                self.mutex.lock()
+                self.wait_condition.wait(self.mutex)
+                self.perform()
+                self.mutex.unlock()
+                time.sleep(1)  # prevent cpu eating
+        except:
+            log.exception('sync thread crash')
+            raise
 
     def init_db(self):
         self.session = get_db_session()
         self.sq = self.session.query
 
     def init_network(self):
+        log.debug('init network start')
         while True:
             try:
                 self.auth_token = get_auth_token()
@@ -473,6 +479,7 @@ class SyncThread(QThread, SyncAgent):
                 break
             except socket.error:
                 time.sleep(30)
+        log.debug('init network done')
 
     def force_sync(self):
         self.timer.stop()
