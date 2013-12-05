@@ -302,7 +302,7 @@ class SyncAgent(object):
     def notes_remote(self):
         """Receive notes from server"""
         notes_ids = []
-        for note in self.all_notes:
+        for note in self._iter_all_notes():
             self.app.log('Note %s remote' % note.title)
             try:
                 nt = self.sq(models.Note).filter(
@@ -488,12 +488,9 @@ class SyncThread(QThread, SyncAgent):
         self.status = STATUS_SYNC
         self.last_sync = datetime.now()
         self.sync_state_changed.emit(SYNC_STATE_START)
-        if self._need_to_update():
-            self.need_to_update = True
-            self.all_notes = list(self._iter_all_notes())
         try:
             self.local_changes()
-            if self.need_to_update:
+            if self._need_to_update():
                 self.remote_changes()
             self.sharing_changes()
         except Exception, e:  # maybe log this
@@ -503,8 +500,6 @@ class SyncThread(QThread, SyncAgent):
         finally:
             self.sync_state_changed.emit(SYNC_STATE_FINISH)
             self.status = STATUS_NONE
-            self.need_to_update = False
-            self.all_notes = None
         self.data_changed.emit()
 
     def local_changes(self):
