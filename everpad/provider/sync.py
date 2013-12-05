@@ -15,6 +15,9 @@ from evernote.edam.limits.constants import (
     EDAM_USER_NOTES_MAX, EDAM_TAG_NAME_REGEX,
     EDAM_NOTEBOOK_NAME_REGEX,
 )
+from evernote.edam.error.constants import (
+    EDAMSystemException,
+)
 from evernote.edam.error.ttypes import EDAMUserException
 from everpad.provider.tools import (
     ACTION_NONE, ACTION_CREATE,
@@ -479,6 +482,12 @@ class SyncThread(QThread, SyncAgent):
                 break
             except socket.error:
                 time.sleep(30)
+            except EDAMSystemException as e:
+                if e.errorCode == 19:
+                    log.info('rate limit reached, sleep 5min')
+                    time.sleep(300)
+                else:
+                    raise
         log.debug('init network done')
 
     def force_sync(self):
@@ -496,9 +505,9 @@ class SyncThread(QThread, SyncAgent):
         self.last_sync = datetime.now()
         self.sync_state_changed.emit(SYNC_STATE_START)
         try:
-            self.local_changes()
             if self._need_to_update():
                 self.remote_changes()
+            self.local_changes()
             self.sharing_changes()
         except Exception, e:  # maybe log this
             self.session.rollback()
