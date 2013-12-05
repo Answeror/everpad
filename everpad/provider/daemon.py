@@ -14,6 +14,10 @@ import fcntl
 import os
 import getpass
 import argparse
+from logbook import Logger, FileHandler
+
+
+log = Logger(__name__)
 
 
 class ProviderApp(AppClass):
@@ -65,9 +69,10 @@ class ProviderApp(AppClass):
         )
         session.commit()
 
-    def log(self, data):
+    def log(self, data, *args, **kargs):
+        log.info(data, *args, **kargs)
         if self.verbose:
-            print data
+            print(data)
 
     @Slot()
     def terminate(self):
@@ -92,10 +97,12 @@ def main():
     try:
         fcntl.lockf(fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
         dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
-        app = ProviderApp(args.verbose, sys.argv)
-        app.exec_()
+        log_handler = FileHandler(os.path.expanduser('~/.everpad/everpad.log'))
+        with log_handler.applicationbound():
+            app = ProviderApp(args.verbose, sys.argv)
+            app.exec_()
     except IOError:
-        print "everpad-provider already ran"
+        print("everpad-provider already ran")
 
 if __name__ == '__main__':
     main()
