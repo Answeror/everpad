@@ -44,12 +44,13 @@ import binascii
 import time
 import socket
 import regex
-SYNC_MANUAL = -1
-
 from logbook import Logger
+from contextlib import contextmanager
 
 
 log = Logger(__name__)
+
+SYNC_MANUAL = -1
 
 
 class SyncAgent(object):
@@ -77,12 +78,16 @@ class SyncAgent(object):
             if note_list.totalNotes - offset <= 0:
                 break
 
+    @contextmanager
     def _need_to_update(self):
         """Check need for update notes"""
         update_count = self.note_store.getSyncState(self.auth_token).updateCount
         reason = update_count != self.update_count
-        self.update_count = update_count
-        return reason
+        try:
+            yield reason
+            self.update_count = update_count
+        except:
+            raise
 
     def notebooks_local(self):
         """Send local notebooks changes to server"""
@@ -506,11 +511,13 @@ class SyncThread(QThread, SyncAgent):
         self.last_sync = datetime.now()
         self.sync_state_changed.emit(SYNC_STATE_START)
         try:
-            if self._need_to_update():
-                self.remote_changes()
-            self.local_changes()
-            self.sharing_changes()
-            log.info('sync done')
+            with self._need_to_update() as need:
+                if need:
+                    log.info('fetch remote changes')
+                    self.remote_changes()
+                self.local_changes()
+                self.sharing_changes()
+                log.info('sync done')
         except EDAMSystemException as e:
             if e.errorCode == 19:
                 self.session.rollback()
