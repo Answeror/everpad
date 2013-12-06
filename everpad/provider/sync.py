@@ -511,6 +511,12 @@ class SyncThread(QThread, SyncAgent):
             self.local_changes()
             self.sharing_changes()
             log.info('sync done')
+        except EDAMSystemException as e:
+            if e.errorCode == 19:
+                self.session.rollback()
+                log.info('rate limit reached, sync stop')
+            else:
+                raise
         except Exception, e:  # maybe log this
             # this rollback is useless
             # because commit in inner functions
