@@ -501,6 +501,7 @@ class SyncThread(QThread, SyncAgent):
 
     def perform(self):
         """Perform all sync"""
+        log.info('sync start')
         self.status = STATUS_SYNC
         self.last_sync = datetime.now()
         self.sync_state_changed.emit(SYNC_STATE_START)
@@ -509,7 +510,10 @@ class SyncThread(QThread, SyncAgent):
                 self.remote_changes()
             self.local_changes()
             self.sharing_changes()
+            log.info('sync done')
         except Exception, e:  # maybe log this
+            # this rollback is useless
+            # because commit in inner functions
             self.session.rollback()
             self.init_db()
             log.exception('apply changes failed')
